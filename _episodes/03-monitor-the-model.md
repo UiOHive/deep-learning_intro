@@ -23,7 +23,7 @@ keypoints:
 ## Explore the data
 
 ### Import dataset
-Here we want to work with the *weather prediction dataset* which can be [downloaded from Zenodo](https://doi.org/10.5281/zenodo.4980359).
+Here we want to work with the *weather prediction dataset* which can be [downloaded from Zenodo](https://doi.org/10.5281/zenodo.5071376).
 It contains daily weather observations from 18 different European cities or places through the years 2000 to 2010. For all locations the data contains the variables ‘mean temperature’, ‘max temperature’, and ‘min temperature’. In addition, for multiple of the following variables are provided: 'cloud_cover', 'wind_speed', 'wind_gust', 'humidity', 'pressure', 'global_radiation', 'precipitation', 'sunshine', but not all of them are provided for all locations. A more extensive description of the dataset including the different physical units is given in accompanying metadata file.
 ![18 locations in the weather prediction dataset](../fig/03_weather_prediction_dataset_map.png)
 
@@ -143,8 +143,8 @@ As with classical machine learning techniques, it is common in deep learning to 
 > > ~~~
 > > from sklearn.model_selection import train_test_split
 > > 
-> > X_train, X_test, y_train, y_test = train_test_split(X_data, y_data, test_size=0.3, random_state=0) 
-> > X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=0)
+> > X_train, X_not_train, y_train, y_not_train = train_test_split(X_data, y_data, test_size=0.3, random_state=0) 
+> > X_val, X_test, y_val, y_test = train_test_split(X_not_train, y_not_train, test_size=0.5, random_state=0)
 > > 
 > > print(f"Data was split into training ({X_train.shape[0]})," \
 > >       f" validation ({X_val.shape[0]}) and test set ({X_test.shape[0]}).")
@@ -175,29 +175,42 @@ The network should hence output a single float value which is why the last layer
 >
 > We have seen how to build a dense neural network in episode 2. 
 > Try now to construct a dense neural network with 3 layers for a regression task.
-> You could for instance start with a network of a dense layer with 100 nodes, followed by one with 50 nodes and finally an output layer.
+> Start with a network of a dense layer with 100 nodes, followed by one with 50 nodes and finally an output layer.
+> Hint: Layers in keras are stacked by passing a layer to the next one like this
+> ~~~
+> inputs = keras.layers.Input(shape=...)
+> next_layer = keras.layers.Dense(..., activation='relu')(inputs)
+> next_layer = keras.layers.Dense(..., activation='relu')(next_layer) 
+> #here we used the same layer name twice, but that is up to you
+> ...
+> next_layer = ...(next_layer) 
+> ...
+> #stack as many layers as you like
+> ~~~
+> {:.language-python}
 >
 > * What must here be the dimension of our input layer?
 > * How would our output layer look like? What about the activation function? Tip: Remember that the activation function in our previous classification network scaled the outputs between 0 and 1.
 >
 > > ## Solution
+> > Here we wrote a function for generating a keras model, because we plan on using this again in the following.
 > > ~~~
 > > from tensorflow import keras
 > > 
-> > def create_nn(n_features, n_predictions):
+> > def create_nn():
 > >     # Input layer
-> >     input = keras.Input(shape=(n_features,), name='input')
+> >     inputs = keras.Input(shape=(X_data.shape[1],), name='input')
 > > 
 > >     # Dense layers
-> >     layers_dense = keras.layers.Dense(100, 'relu')(input)
+> >     layers_dense = keras.layers.Dense(100, 'relu')(inputs)
 > >     layers_dense = keras.layers.Dense(50, 'relu')(layers_dense)
 > > 
 > >     # Output layer
-> >     output = keras.layers.Dense(n_predictions)(layers_dense)
+> >     outputs = keras.layers.Dense(1)(layers_dense)
 > > 
-> >     return keras.Model(inputs=input, outputs=output, name="weather_prediction_model")
+> >     return keras.Model(inputs=inputs, outputs=outputs, name="weather_prediction_model")
 > > 
-> > model = create_nn(n_features=X_data.shape[1], n_predictions=1)
+> > model = create_nn()
 > > model.summary()
 > > ~~~
 > > {:.language-python}
@@ -340,7 +353,7 @@ Let's give this a try!
 
 We need to initiate a new model -- otherwise Keras will simply assume that we want to continue training the model we already trained above.
 ~~~
-model = create_nn(n_features=X_data.shape[1], n_predictions=1)
+model = create_nn()
 model.compile(optimizer='adam',
               loss='mse',
               metrics=[keras.metrics.RootMeanSquaredError()])
@@ -394,20 +407,20 @@ Most similar to classical machine learning might to **reduce the number of param
 >
 > > ## Solution
 > > ~~~
-> > def create_nn(n_features, n_predictions, nodes1, nodes2):
+> > def create_nn(nodes1, nodes2):
 > >     # Input layer
-> >     input = keras.layers.Input(shape=(n_features,), name='input')
+> >     inputs = keras.layers.Input(shape=(X_data.shape[1],), name='input')
 > > 
 > >     # Dense layers
-> >     layers_dense = keras.layers.Dense(nodes1, 'relu')(input)
+> >     layers_dense = keras.layers.Dense(nodes1, 'relu')(inputs)
 > >     layers_dense = keras.layers.Dense(nodes2, 'relu')(layers_dense)
 > > 
 > >     # Output layer
-> >     output = keras.layers.Dense(n_predictions)(layers_dense)
+> >     outputs = keras.layers.Dense(1)(layers_dense)
 > > 
-> >     return keras.Model(inputs=input, outputs=output, name="model_small")
+> >     return keras.Model(inputs=inputs, outputs=outputs, name="model_small")
 > > 
-> > model = create_nn(X_data.shape[1], 1, 10, 5)
+> > model = create_nn(10, 5)
 > > model.summary()
 > > ~~~
 > > {:.language-python}
@@ -469,7 +482,7 @@ Early stopping is both intuitive and effective to use, so it has become a standa
 
 To better study the effect, we can now savely go back to models with many (too many?) parameters:
 ~~~
-model = create_nn(X_data.shape[1], 1, 100, 50)
+model = create_nn(100, 50)
 model.compile(optimizer='adam',
               loss='mse',
               metrics=[keras.metrics.RootMeanSquaredError()])
@@ -536,22 +549,22 @@ from tensorflow.keras.layers import BatchNormalization
 >
 > > ## Solution
 > > ~~~
-> > def create_nn(n_features, n_predictions):
+> > def create_nn():
 > >     # Input layer
-> >     layers_input = keras.layers.Input(shape=(n_features,), name='input')
+> >     inputs = keras.layers.Input(shape=(X_data.shape[1],), name='input')
 > > 
 > >     # Dense layers
-> >     layers_dense = keras.layers.BatchNormalization()(layers_input)
+> >     layers_dense = keras.layers.BatchNormalization()(inputs)
 > >     layers_dense = keras.layers.Dense(100, 'relu')(layers_dense)
 > >     layers_dense = keras.layers.Dense(50, 'relu')(layers_dense)
 > > 
 > >     # Output layer
-> >     layers_output = keras.layers.Dense(n_predictions)(layers_dense)
+> >     outputs = keras.layers.Dense(1)(layers_dense)
 > > 
 > >     # Defining the model and compiling it
-> >     return keras.Model(inputs=layers_input, outputs=layers_output, name="model_batchnorm")
+> >     return keras.Model(inputs=inputs, outputs=outputs, name="model_batchnorm")
 > > 
-> > model = create_nn(X_data.shape[1], 1)
+> > model = create_nn()
 > > model.compile(loss='mse', optimizer='adam', metrics=[keras.metrics.RootMeanSquaredError()])
 > > model.summary()
 > > ~~~
